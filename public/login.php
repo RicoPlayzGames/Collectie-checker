@@ -39,7 +39,7 @@
 
                 <!-- Username Field -->
                 <div class="form-group">
-                    <label for="username">Gebruikersnaam</label>
+                    <label for="username">Username</label>
                     <input 
                         type="text" 
                         id="username" 
@@ -51,7 +51,7 @@
 
                 <!-- Password Field -->
                 <div class="form-group">
-                    <label for="password">Wachtwoord</label>
+                    <label for="password">Password</label>
                     <div class="password-input-wrapper">
                         <input 
                             type="password" 
@@ -69,7 +69,7 @@
                 <!-- Forgot Password Link -->
                 <div class="form-actions">
                     <a href="forg-pass.php" class="forgot-password">
-                        Wachtwoord vergeten?
+                        Forgot password?
                     </a>
                 </div>
 
@@ -86,11 +86,11 @@
         <!-- Footer -->
         <footer class="footer">
             <p>© <?php echo date("Y"); ?> Collection Checker</p>
-            <a href="#">Privacy Policy</a>
+            <a href="privacy.php">Privacy Policy</a>
         </footer>
     </div>
 
-    <script src="../assets/js/scripts.js"></script>
+    <script src="../assets/js/scripts.js?v=20260313i"></script>
     <script>
         // Toggle password visibility
         function togglePassword(fieldId) {

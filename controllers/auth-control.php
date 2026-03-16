@@ -1,7 +1,21 @@
 <?php
 session_start();
 
-require_once '../config/db.php';
+require_once __DIR__ . '/../config/db.php';
+require_once __DIR__ . '/../includes/functions.php';
+
+if (!isset($pdo) || !($pdo instanceof PDO)) {
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode(['success' => false, 'message' => 'Database connection is not available.']);
+    exit;
+}
+
+// Ensure database schema exists before attempting auth operations.
+try {
+    ensureDbSchema($pdo);
+} catch (Throwable $e) {
+    error_log($e->getMessage() . PHP_EOL, 3, __DIR__ . '/../config/db_errors.log');
+}
 
 /*
     Auth Controller - Handles all authentication operations
@@ -12,9 +26,9 @@ require_once '../config/db.php';
 */
 
 class AuthController {
-    private $pdo;
+    private PDO $pdo;
 
-    public function __construct($pdo) {
+    public function __construct(PDO $pdo) {
         $this->pdo = $pdo;
     }
 
@@ -32,12 +46,12 @@ class AuthController {
             // (validation applied during registration/reset to avoid locking out existing users)
 
             // Query user from database
-            $stmt = $this->pdo->prepare('SELECT id, username, email, password FROM users WHERE username = ?');
+            $stmt = $this->pdo->prepare('SELECT id, username, email, password_hash FROM users WHERE username = ?');
             $stmt->execute([$username]);
             $user = $stmt->fetch();
 
             // Verify user exists and password matches
-            if (!$user || !password_verify($password, $user['password'])) {
+            if (!$user || !password_verify($password, $user['password_hash'])) {
                 return ['success' => false, 'message' => 'Invalid username or password'];
             }
 
@@ -83,7 +97,7 @@ class AuthController {
                 !preg_match('/[A-Z]/', $password) ||
                 !preg_match('/[^A-Za-z0-9]/', $password)
             ) {
-                return ['success' => false, 'message' => 'Password moet minstens 8 tekens bevatten, maximaal 15, een cijfer, een kleine letter, een hoofdletter en een speciaal teken'];
+                return ['success' => false, 'message' => 'Password must be 8-15 characters and include a number, a lowercase letter, an uppercase letter, and a special character'];
             }
 
             // Validate email
@@ -109,7 +123,7 @@ class AuthController {
             $hashed_password = password_hash($password, PASSWORD_BCRYPT);
 
             // Insert new user
-            $stmt = $this->pdo->prepare('INSERT INTO users (username, email, password) VALUES (?, ?, ?)');
+            $stmt = $this->pdo->prepare('INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)');
             $stmt->execute([$username, $email, $hashed_password]);
 
             error_log("New user registered: $username");
@@ -190,7 +204,7 @@ class AuthController {
                 !preg_match('/[A-Z]/', $new_password) ||
                 !preg_match('/[^A-Za-z0-9]/', $new_password)
             ) {
-                return ['success' => false, 'message' => 'Password moet minstens 8 tekens bevatten, maximaal 15, een cijfer, een kleine letter, een hoofdletter en een speciaal teken'];
+                return ['success' => false, 'message' => 'Password must be 8-15 characters and include a number, a lowercase letter, an uppercase letter, and a special character'];
             }
 
             // Get user
@@ -215,7 +229,7 @@ class AuthController {
             $hashed_password = password_hash($new_password, PASSWORD_BCRYPT);
 
             // Update user password
-            $stmt = $this->pdo->prepare('UPDATE users SET password = ? WHERE id = ?');
+            $stmt = $this->pdo->prepare('UPDATE users SET password_hash = ? WHERE id = ?');
             $stmt->execute([$hashed_password, $user['id']]);
 
             // Mark reset code as used
@@ -309,27 +323,8 @@ switch ($action) {
         $response = ['success' => false, 'message' => 'Invalid action'];
 }
 
-// Return response as JSON or redirect
-if (!empty($response['redirect'])) {
-    header('Location: ' . $response['redirect']);
-} else {
-    // if the request is not coming from AJAX, we redirect back to the login page with an error query parameter
-    $isAjax = isset($_SERVER['HTTP_X_REQUESTED_WITH']) &&
-              strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
-    if (!$isAjax) {
-        if ($action === 'login') {
-            $msg = isset($response['message']) ? urlencode($response['message']) : '';
-            header('Location: ../public/login.php' . ($msg ? '?error=' . $msg : ''));
-            exit;
-        } elseif ($action === 'register') {
-            $msg = isset($response['message']) ? urlencode($response['message']) : '';
-            header('Location: ../public/register.php' . ($msg ? '?error=' . $msg : ''));
-            exit;
-        }
-    }
-
-    header('Content-Type: application/json');
-    echo json_encode($response);
-}
+// Return response as JSON (frontend handles optional redirects)
+header('Content-Type: application/json');
+echo json_encode($response);
 exit;
 ?>

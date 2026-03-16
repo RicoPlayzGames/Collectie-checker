@@ -38,12 +38,12 @@ function createCriteriaPopup() {
     div.className = 'password-popup';
     div.innerHTML = `
         <ul>
-            <li class="length"><span class="status">✖</span> Minstens 8 tekens</li>
-            <li class="maxlength"><span class="status">✖</span> Maximaal 15 tekens</li>
-            <li class="number"><span class="status">✖</span> Een cijfer</li>
-            <li class="letter"><span class="status">✖</span> Een kleine letter</li>
-            <li class="upper"><span class="status">✖</span> Een hoofdletter</li>
-            <li class="special"><span class="status">✖</span> Een speciaal teken (niet-alfanumeriek)</li>
+            <li class="length"><span class="status">✖</span> At least 8 characters</li>
+            <li class="maxlength"><span class="status">✖</span> Maximum 15 characters</li>
+            <li class="number"><span class="status">✖</span> A number</li>
+            <li class="letter"><span class="status">✖</span> A lowercase letter</li>
+            <li class="upper"><span class="status">✖</span> An uppercase letter</li>
+            <li class="special"><span class="status">✖</span> A special character (non-alphanumeric)</li>
         </ul>
     `;
     return div;
@@ -113,6 +113,23 @@ function attachPopupToField(pwInput) {
     pwInput.addEventListener('input', () => updateCriteria(pwInput.value, popup));
 }
 
+function resolveFormEndpoint(form, actionName) {
+    const rawAction = form.getAttribute('action') || '';
+
+    if (actionName === 'login' || actionName === 'register' || actionName === 'request_reset' || actionName === 'verify_reset' || actionName === 'logout') {
+        const path = window.location.pathname;
+        const publicIndex = path.toLowerCase().indexOf('/public/');
+        if (publicIndex !== -1) {
+            const basePath = path.slice(0, publicIndex);
+            const normalizedBase = basePath.endsWith('/') ? basePath.slice(0, -1) : basePath;
+            return `${normalizedBase}/controllers/auth-control.php`;
+        }
+        return '/controllers/auth-control.php';
+    }
+
+    return rawAction ? new URL(rawAction, window.location.href).toString() : window.location.href;
+}
+
 
 // attach to any authentication form (login, register, reset)
 document.addEventListener('DOMContentLoaded', function() {
@@ -129,25 +146,39 @@ document.addEventListener('DOMContentLoaded', function() {
             e.preventDefault();
             clearErrors(form);
 
+            const endpoint = resolveFormEndpoint(form, action);
+
             const pwdField = form.querySelector('input[name="password"]');
             // only enforce complexity on register or password-reset actions
             if (pwdField && (action === 'register' || action === 'verify_reset')) {
                 const pw = pwdField.value;
                 if (!validatePassword(pw)) {
-                    showError(pwdField, 'Wachtwoord voldoet niet aan de eisen (8-15 tekens, cijfer, kleine letter, hoofdletter, speciaal teken).');
+                    showError(pwdField, 'Password must be 8-15 characters and include a number, a lowercase letter, an uppercase letter, and a special character.');
                     return;
                 }
             }
 
             const data = new FormData(form);
-            fetch(form.action, { method: 'POST', body: data })
-                .then(res => res.json())
+            fetch(endpoint, { method: 'POST', body: data })
+                .then(async res => {
+                    const contentType = res.headers.get('content-type') || '';
+                    if (!contentType.includes('application/json')) {
+                        const text = await res.text();
+                        throw new Error(`Expected JSON response, got: ${text.slice(0, 120)}`);
+                    }
+                    return res.json();
+                })
                 .then(response => {
                     if (response.success) {
                         if (response.redirect) {
                             window.location = response.redirect;
                         } else {
-                            window.location.reload();
+                            const formError = document.getElementById('form-error');
+                            if (formError && response.message) {
+                                formError.textContent = response.message;
+                                formError.classList.add('visible');
+                            }
+                            form.reset();
                         }
                     } else {
                         // highlight fields and show message
@@ -165,7 +196,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 })
                 .catch(err => {
                     console.error('Fetch error', err);
-                    showError(pwdField || form, 'Er is een fout opgetreden, probeer het opnieuw.');
+                    showError(pwdField || form, 'An error occurred, please try again.');
                 });
         });
     });

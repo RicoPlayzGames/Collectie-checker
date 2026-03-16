@@ -19,9 +19,11 @@
             <h2>Reset Password</h2>
             <p class="reset-description">Enter your email address and we'll send you a code to reset your password.</p>
 
-            <form method="POST" action="../controllers/auth-control.php" class="reset-form">
+            <form method="POST" action="../controllers/auth-control.php" class="reset-form login-form">
                 <!-- Hidden action field -->
                 <input type="hidden" name="action" value="request_reset">
+
+                <div id="form-error" class="form-error"></div>
 
                 <!-- Email Input -->
                 <div class="form-group">
@@ -52,5 +54,7 @@
         </footer>
     </div>
 </body>
+
+<script src="../assets/js/scripts.js?v=20260313i"></script>
 
 </html>
